@@ -1,0 +1,296 @@
+#ifndef HEADER_SIZE
+    #define HEADER_SIZE 0x20
+#endif
+
+BigEndian();
+
+struct JObjDesc {
+    SetBackColor(cLtYellow);
+    uint32 name_pointer             <format=hex, fgcolor=cRed>;
+    uint32 flags0x4;
+    uint32 child_pointer            <format=hex, fgcolor=cRed>;
+    uint32 next_sibling_pointer     <format=hex, fgcolor=cRed>;
+    uint32 dobj_pointer;
+    float x_rotation;
+    float y_rotation;
+    float z_rotation;
+    float x_scale;
+    float y_scale;
+    float z_scale;
+    float x_translation;
+    float y_translation;
+    float z_translation;
+    uint32 inverse_matrix_pointer   <format=hex, fgcolor=cRed>;
+    uint32 robj_pointer             <format=hex, fgcolor=cRed>;
+
+    if (inverse_matrix_pointer != 0) {
+        FSeek(inverse_matrix_pointer + HEADER_SIZE);
+        SetBackColor(cLtGray);
+        struct {
+            uint32 unknown[12];
+        } inverse_matrix;
+    }
+    if (child_pointer != 0) {
+        FSeek(child_pointer + HEADER_SIZE);
+        struct JObjDesc child_jobj;
+    }
+    if (dobj_pointer != 0) {
+        FSeek(dobj_pointer + HEADER_SIZE);
+        struct DObjDesc dobj;
+    }
+    if (next_sibling_pointer != 0) {
+        FSeek(next_sibling_pointer + HEADER_SIZE);
+        struct JObjDesc next_sibling_jobj;
+    }
+    FSeek(startof(this) + 0x40);
+    SetBackColor(cNone);
+};
+
+struct DObjDesc {
+    SetBackColor(cAqua);
+    uint32 name_pointer             <format=hex, fgcolor=cRed>;
+    uint32 next_sibling_pointer     <format=hex, fgcolor=cRed>;
+    uint32 mobj_pointer             <format=hex, fgcolor=cRed>;
+    uint32 pobj_pointer             <format=hex, fgcolor=cRed>;
+    if (pobj_pointer != 0) {
+        FSeek(pobj_pointer + HEADER_SIZE);
+        struct PObjDesc dobj;
+    }
+    if (mobj_pointer != 0) {
+        FSeek(mobj_pointer + HEADER_SIZE);
+        struct MObjDesc mobj;
+    }
+    if (next_sibling_pointer != 0) {
+        FSeek(next_sibling_pointer + HEADER_SIZE);
+        struct DObjDesc next_sibling_dobj;
+    }
+    FSeek(startof(this) + 0x10);
+    SetBackColor(cNone);
+};
+
+struct MObjDesc {
+    SetBackColor(cYellow);
+    uint32 name_pointer             <format=hex, fgcolor=cRed>;
+    uint32 flags0x4;
+    uint32 tobj_pointer             <format=hex, fgcolor=cRed>;
+    uint32 material_pointer         <format=hex, fgcolor=cRed>;
+    uint32 unk0x10;
+    uint32 unk0x14;
+    if (tobj_pointer != 0) {
+        FSeek(tobj_pointer + HEADER_SIZE);
+        struct TObjDesc tobj;
+    }
+    FSeek(startof(this) + 0x18);
+    SetBackColor(cNone);
+};
+
+struct  TObjDesc {
+    SetBackColor(cDkYellow);
+    uint32 name_pointer             <format=hex, fgcolor=cRed>;
+    uint32 next_sibling_pointer     <format=hex, fgcolor=cRed>;
+    uint32 GXTexMapID;
+    uint32 GXTexGenSrc;
+    float x_rotation;
+    float y_rotation;
+    float z_rotation;
+    float x_scale;
+    float y_scale;
+    float z_scale;
+    float x_translation;
+    float y_translation;
+    float z_translation;
+    uint32 GXTexWrapMode_t;
+    uint32 GXTexWrapMode_s;
+    uchar repeat_s;
+    uchar repeat_t;
+    uint16 padding;
+    uint32 flags0x40;
+    float blending;
+    uint32 GXTexFilter;
+    uint32 image_header_pointer     <format=hex, fgcolor=cRed>;
+    uint32 palette_header_pointer   <format=hex, fgcolor=cRed>;
+    uint32 lod_struct_pointer       <format=hex, fgcolor=cRed>;
+    uint32 tev_struct_pointer       <format=hex, fgcolor=cRed>;
+    SetBackColor(cNone);
+
+    if (image_header_pointer != 0) {
+        FSeek(image_header_pointer + HEADER_SIZE);
+        struct ImageHeader image_header;
+    }
+    if (next_sibling_pointer != 0) {
+        FSeek(next_sibling_pointer + HEADER_SIZE);
+        struct TObjDesc next_sibling_tobj;
+    }    
+    FSeek(startof(this) + 0x5C);
+    SetBackColor(cNone);
+};
+
+struct ImageHeader {
+    SetBackColor(cPurple);
+    uint32 image_data_pointer   <format=hex, fgcolor=cRed>;
+    uint16 width;
+    uint16 height;
+    uint32 image_format         <format=hex>;
+    
+    if (image_data_pointer != 0) {
+        seek_ref(image_data_pointer);
+        switch (image_format) {
+            case 0: //i4
+                struct ImageData_I4 image_data(width, height);
+                break;
+            case 1: //i8
+                struct ImageData_I8 image_data(width, height);
+                break;
+            case 2: //i4a4
+                struct ImageData_IA4 image_data(width, height);
+                break;
+            case 3: //i8a8
+                struct ImageData_IA8 image_data(width, height);
+                break;
+            case 4: //r5g6b5
+                struct ImageData_RGB565 image_data(width, height);
+                break;
+            case 5: //rgb5a3
+                struct ImageData_RGB5A3 image_data(width, height);
+                break;
+            case 6: //r8g8b8a8
+                struct ImageData_RGBA8 image_data(width, height);
+                break;
+            case 8: //index4
+                struct ImageData_C4 image_data(width, height);
+                break;
+            case 9: //index8
+                struct ImageData_C8 image_data(width, height);
+                break;
+            case 0xA: //index14x2
+                struct ImageData_C14x2 image_data(width, height);
+                break;
+            case 0xE: //s3tc1 
+                struct ImageData_CMPR image_data(width, height);
+                break;
+        }
+    }
+};
+
+struct ImageData_I4 (int width, int height) {
+    SetBackColor(0xFF6FFF);
+    local int block_width = 8;
+    local int block_height = 8;
+    local int block_size = 32;
+    local int blocks_w = Ceil(width/block_width);
+    local int blocks_h = Ceil(height/block_height);
+    uchar data[blocks_w * blocks_h * block_size];
+};
+
+struct ImageData_I8 (int width, int height) {
+    SetBackColor(0xFF6FFF);
+    local int block_width = 8;
+    local int block_height = 4;
+    local int block_size = 32;
+    local int blocks_w = Ceil(width/block_width);
+    local int blocks_h = Ceil(height/block_height);
+    uchar data[blocks_w * blocks_h * block_size];
+};
+
+struct ImageData_IA4 (int width, int height) {
+    SetBackColor(0xFF6FFF);
+    local int block_width = 8;
+    local int block_height = 4;
+    local int block_size = 32;
+    local int blocks_w = Ceil(width/block_width);
+    local int blocks_h = Ceil(height/block_height);
+    uchar data[blocks_w * blocks_h * block_size];
+};
+
+struct ImageData_IA8 (int width, int height) {
+    SetBackColor(0xFF6FFF);
+    local int block_width = 4;
+    local int block_height = 4;
+    local int block_size = 32;
+    local int blocks_w = Ceil(width/block_width);
+    local int blocks_h = Ceil(height/block_height);
+    uchar data[blocks_w * blocks_h * block_size];
+};
+
+struct ImageData_RGB565 (int width, int height) {
+    SetBackColor(0xFF6FFF);
+    local int block_width = 4;
+    local int block_height = 4;
+    local int block_size = 32;
+    local int blocks_w = Ceil(width/block_width);
+    local int blocks_h = Ceil(height/block_height);
+    uchar data[blocks_w * blocks_h * block_size];
+};
+
+struct ImageData_RGB5A3 (int width, int height) {
+    SetBackColor(0xFF6FFF);
+    local int block_width = 4;
+    local int block_height = 4;
+    local int block_size = 32;
+    local int blocks_w = Ceil(width/block_width);
+    local int blocks_h = Ceil(height/block_height);
+    uchar data[blocks_w * blocks_h * block_size];
+};
+
+struct ImageData_RGBA8 (int width, int height) {
+    SetBackColor(0xFF6FFF);
+    local int block_width = 8;
+    local int block_height = 4;
+    local int block_size = 64;
+    local int blocks_w = Ceil(width/block_width);
+    local int blocks_h = Ceil(height/block_height);
+    uchar data[blocks_w * blocks_h * block_size];
+};
+
+struct ImageData_C4 (int width, int height) {
+    SetBackColor(0xFF6FFF);
+    local int block_width = 8;
+    local int block_height = 8;
+    local int block_size = 32;
+    local int blocks_w = Ceil(width/block_width);
+    local int blocks_h = Ceil(height/block_height);
+    uchar data[blocks_w * blocks_h * block_size];
+};
+
+struct ImageData_C8 (int width, int height) {
+    SetBackColor(0xFF6FFF);
+    local int block_width = 8;
+    local int block_height = 4;
+    local int block_size = 32;
+    local int blocks_w = Ceil(width/block_width);
+    local int blocks_h = Ceil(height/block_height);
+    uchar data[blocks_w * blocks_h * block_size];
+};
+
+struct ImageData_C14x2 (int width, int height) {
+    SetBackColor(0xFF6FFF);
+    local int block_width = 4;
+    local int block_height = 4;
+    local int block_size = 32;
+    local int blocks_w = Ceil(width/block_width);
+    local int blocks_h = Ceil(height/block_height);
+    uchar data[blocks_w * blocks_h * block_size];
+};
+
+struct ImageData_CMPR (int width, int height) {
+    SetBackColor(0xFF6FFF);
+    local int block_width = 8;
+    local int block_height = 8;
+    local int block_size = 32;
+    local int blocks_w = Ceil(width/block_width);
+    local int blocks_h = Ceil(height/block_height);
+    uchar data[blocks_w * blocks_h * block_size];
+};
+
+struct PObjDesc {
+    SetBackColor(0x00FFFF);
+	// 0x00
+	uint32 name_pointer;
+	uint32 next_sibling_pointer         <format=hex, fgcolor=cRed>;
+	uint32 vertex_attributes_pointer    <format=hex, fgcolor=cRed>; // vertex attribute list
+	uint16 flags                        <format=hex>;
+	uint16 display_list_nblocks;  // number of 0x20 (32) byte blocks occupied by display list data
+	// 0x10
+	uint32 display_list_pointer         <format=hex, fgcolor=cRed>; // display list
+	uint32 joint_weights_pointer        <format=hex, fgcolor=cRed>; // joint weight info
+};

@@ -1,0 +1,444 @@
+/*****************************************************************************
+ * dat.bt - Structure definitions for Super Smash Brothers Melee - dat file related entities.
+ *
+ *****************************************************************************
+ * Revision History:
+ *  2009/09/29 - revel8n - Original
+ *  2010/02/22 - revel8n - Changes based on information from breakpoint
+ *  2010/02/22 - revel8n - More structure updates
+ *  2010/02/23 - revel8n - Started adding other structures (FIGHTER and FIGATREE)
+ *  2019/01/14 - mer - temporary hardcode for most of Fighter dat file data
+ */
+
+#include "jobj.bt"
+
+#define HEADER_SIZE 0x20
+
+// #pragma displayname("dat structures")
+// #pragma fileextensions(".dat")
+
+BigEndian();
+local uint64 pos = FTell();
+
+void seek_ref(int pointer) {
+        FSeek(pointer + HEADER_SIZE);
+}
+
+uint64 next_target(int position) {
+        local uint64 best_found = fileHeader.fileSize0x00;
+        local int n_offsets = sizeof(relocation_data.pointers)/sizeof(relocation_data.pointers[0]);
+        local int i = 0;
+        local uint64 current_offset = 0;
+        for (i = 0; i < fileHeader.relocation_tableCount0x08; ++i) {
+                current_offset = relocation_data.pointers[i] + HEADER_SIZE;
+                if (current_offset > position & current_offset < best_found) {
+                        best_found = current_offset;
+                }
+        }
+        return best_found;
+}
+
+// DAT_FILE File Structure
+struct DAT_FILE
+{
+//      #pragma lockAt(0x00000000)
+
+        // DAT_HEADER - DAT file header information structure
+        SetBackColor(cLtGreen);
+        struct DAT_HEADER {
+                // 0x00
+                uint32 fileSize0x00                 <format=hex>;
+                uint32 dataBlockSize0x04            <format=hex>; // size of main data block
+                uint32 relocation_tableCount0x08;                    // unknown data size / 4
+                uint32 rootCount0x0C;                               // unknown data size / 8
+                // if combined "data sizes" + 0x20 is less than file size, then offset to string table?
+                // overwritten data addresses (as such, assumed they are unimportant?)
+                // - 0x20 - start + 0x20?
+                // - 0x24 - start + dataBlockSize0x04 + 0x20 - offsets to offsets?
+                // - 0x28 - start + [0x24] + (relocation_tableCount0x08 * 4)
+                // - 0x2C - start + [0x28] + (jobjCount0x0C * 8)
+                // - 0x30 - start + [0x2C] + (unknown0x10 * 8)
+                // - 0x3C - or'ed with 0x01
+                // - 0x40 - start
+                // 0x10
+                uint32 refCount0x10; // reference node count
+                uint32 unknown0x14; // '001B' in main Pl*.dat files
+                uint32 unknown0x18;
+                uint32 unknown0x1C;
+        } fileHeader;
+        SetBackColor(cNone);
+
+        // Mark pointers and their targets
+        if (0 != fileHeader.dataBlockSize0x04 && 0 < fileHeader.relocation_tableCount0x08) {
+            seek_ref(fileHeader.dataBlockSize0x04);
+            // SetBackColor(cLtGreen);
+            uint32 relocation_table[fileHeader.relocation_tableCount0x08] <format=hex, bgcolor=cLtGreen>;
+
+            local uint32 offsetNum = 0;
+
+            pos = FTell();
+
+            seek_ref(fileHeader.dataBlockSize0x04);
+
+            struct {
+                // SetBackColor(cNone);
+                // SetForeColor(cRed);
+                for (offsetNum = 0; offsetNum < fileHeader.relocation_tableCount0x08; ++offsetNum) {
+                        seek_ref(relocation_table[offsetNum]);
+                        uint32 pointers <format=hex, fgcolor=cRed>;
+                }
+                // SetBackColor(cLtBlue);
+                // SetForeColor(cNone);
+                for (offsetNum = 0; offsetNum < fileHeader.relocation_tableCount0x08; ++offsetNum) {
+                        seek_ref(pointers[offsetNum]);
+                        uint16 targets <format=hex, bgcolor=cLtBlue>;
+                }
+                FSeek(pos);
+            } relocation_data;
+        }
+
+        if (0 < fileHeader.rootCount0x0C)
+        {
+                seek_ref(fileHeader.dataBlockSize0x04 + (fileHeader.relocation_tableCount0x08 * 4));
+                SetBackColor(cLtRed);
+                struct {
+                        struct {
+                                uint32 rootOffset0x00           <format=hex>;
+                                uint32 stringTableOffset0x04    <format=hex>; // offset to name string?
+
+                                pos = FTell();
+                                seek_ref(rootOffset0x00);
+                                uint16 mappedData               <format=hex, bgcolor=cLtBlue>;
+                                FSeek(pos);
+                        } rootNodes[fileHeader.rootCount0x0C] <optimize=false>;
+                } rootNodes;
+        }
+
+        if (0 < fileHeader.refCount0x10)
+        {
+                seek_ref(fileHeader.dataBlockSize0x04 + (fileHeader.relocation_tableCount0x08 * 4) + (fileHeader.rootCount0x0C * 8));
+                SetBackColor(cLtBlue);
+                struct{
+                        uint32 unknown0x00;
+                        uint32 unknown0x04;
+                } unknownData0x10[fileHeader.refCount0x10];
+        }
+
+        // string table data
+        if (0 < fileHeader.rootCount0x0C)
+        {
+                seek_ref(fileHeader.dataBlockSize0x04 + (fileHeader.relocation_tableCount0x08 * 4) + (fileHeader.rootCount0x0C * 8) + (fileHeader.refCount0x10 * 8));
+                SetBackColor(cLtYellow);
+                struct {
+                        struct {
+                                string nodeName0x00;
+                        } stringTable[fileHeader.rootCount0x0C] <optimize = false>;
+                } stringTable;
+        }
+
+    local int index_start = HEADER_SIZE + rootNodes.rootNodes.rootOffset0x00;
+    FSeek(index_start);
+    struct {
+        uint32 commonAttributesPointer;
+        uint32 uniqueAttributesPointer;
+        uint32 unknown0x8;
+        uint32 subactionTablePointer;
+        uint32 unknown0x10;
+        uint32 auxSubactionTablePointer;
+        uint32 unknown0x18;
+        uint32 unknown0x1C;
+        uint32 unknown0x20;
+        uint32 unknown0x24;
+        uint32 unknown0x28;
+        uint32 ragdollDataPointer;
+        uint32 hurtboxHeaderPointer;
+        uint32 unknown0x34;
+        uint32 unknown0x38;
+        uint32 unknown0x3C;
+        uint32 unknown0x40;
+        uint32 ledgegrabDataPointer;
+        uint32 articleDataPointer;
+        uint32 unknown0x4C;
+        uint32 unknown0x50;
+        uint32 unknown0x54;
+        uint32 unknown0x58;
+        uint32 unknown0x5C;
+    } index_table <bgcolor=cLtGreen, fgcolor=cRed>;
+
+    // Common Attributes table
+    seek_ref(index_table.commonAttributesPointer);
+    SetBackColor(cLtPurple);
+    uint32 common_attributes[0x61];
+
+    // Unique / character-specific attributes
+    seek_ref(index_table.uniqueAttributesPointer);
+    SetBackColor(cDkPurple);
+    uint32 unique_attributes[(next_target(FTell()) - FTell())/sizeof(uint32)];
+
+    // Hurtboxes
+    SetBackColor(cLtRed);
+    seek_ref(index_table.hurtboxHeaderPointer);
+    struct HurtboxStruct hurtbox_data;
+
+    // Articles
+    if (index_table.articleDataPointer != 0) {
+        seek_ref(index_table.articleDataPointer);
+        struct {
+            struct {
+                SetBackColor(cDkRed);
+                seek_ref(index_table.articleDataPointer);
+                local int current_position = FTell();
+                local int n_articles = 0;
+                while (ReadInt() != 0 & FTell() < index_start) {
+                    uint32 article_pointer;
+                    current_position += 4;
+                    n_articles += 1;
+                    FSeek(current_position);
+                }
+                FSeek(index_start);
+            } article_index;
+            local int i;
+            for (i = 0; i < article_index.n_articles; i++) {
+                seek_ref(article_index.article_pointer[i]);
+                SetBackColor(cBlue);
+                struct Article articles;
+            }
+            FSeek(index_start);
+        } article_data <optimize=false>;
+    }
+
+    seek_ref(index_table.unknown0x5C);
+    struct JObjDesc unk_jobj_index_5C;
+
+    seek_ref(index_table.subactionTablePointer);
+    local int n_subactions = (next_target(FTell()) - FTell()) / 0x18;
+    SetBackColor(cDkGreen);
+    struct SubactionTable subaction_table(n_subactions);
+
+    local int n_aux_subactions = (next_target(FTell()) - FTell()) / 0x18;
+    SetBackColor(cLtGreen);
+    struct SubactionTable aux_subaction_table(n_aux_subactions);
+
+    seek_ref(index_table.ledgegrabDataPointer);
+    SetBackColor(cLtAqua);
+    struct EnvCollisionData environment_collision_data;
+
+    // re-process reloc table to highlight on top of other structs
+    // SetBackColor(cNone);
+    // struct {
+        // SetForeColor(cRed);
+        // for (offsetNum = 0; offsetNum < fileHeader.relocation_tableCount0x08; ++offsetNum) {
+            // seek_ref(relocation_table[offsetNum]);
+            // uint32 pointers <format = hex>;
+        // }
+        // FSeek(FileSize());
+    // } pointers;
+
+    FSeek(FileSize());
+    struct {
+        // SetBackColor(cLtBlue);
+        // SetForeColor(cNone);
+        for (offsetNum = 0; offsetNum < fileHeader.relocation_tableCount0x08; ++offsetNum) {
+            seek_ref(relocation_data.pointers[offsetNum]);
+            uint16 targets <format=hex, bgcolor=cLtBlue>;
+        }
+        FSeek(FileSize());
+    } targets;
+    FSeek(FileSize());
+};
+
+struct Hurtbox {
+    uint32 bone;
+    uint32 unk_int1;
+    uint32 unk_int2;
+    float x1;
+    float y1;
+    float z1;
+    float x2;
+    float y2;
+    float z2;
+    float scale;
+};
+
+struct ArticleHurtbox {
+    uint32 bone;
+    float x1;
+    float y1;
+    float z1;
+    float x2;
+    float y2;
+    float z2;
+    float scale;
+};
+
+struct HurtboxStruct {
+    uint32 n_hurtboxes;
+    uint32 hurtbox_data_pointer <format=hex, fgcolor=cRed>;
+    if (hurtbox_data_pointer != 0) {
+        seek_ref(hurtbox_data_pointer);
+        struct Hurtbox hurtboxes[n_hurtboxes];
+        FSeek(startof(this) + 0x8);
+    }
+};
+
+struct ArticleHurtboxStruct {
+    uint32 n_hurtboxes;
+    uint32 hurtbox_data_pointer <format=hex, fgcolor=cRed>;
+    if (hurtbox_data_pointer != 0) {
+        seek_ref(hurtbox_data_pointer);
+        struct ArticleHurtbox hurtboxes[n_hurtboxes];
+        FSeek(startof(this) + 0x8);
+    }
+};
+
+struct Script (int length) {
+    local int i;
+    local int j;
+    local int is_pointer;
+    local int current_pos;
+    local int current_data;
+    for (i = 0; i < length; i++) {
+        uint32 data <format=hex, bgcolor=cGreen>;
+        // highlight pointer in goto/subroutine events
+        if (data[i] == 0x14000000 | data[i] == 0x1C000000) {
+            current_pos = FTell() - HEADER_SIZE;
+            // double check that it isn't just the string "14000000" inside another event's data
+            for (j = 0; j < fileHeader.relocation_tableCount0x08; j++) {
+                if (current_pos == relocation_table[j]) {
+                    uint32 data <format=hex, fgcolor=cRed, bgcolor=cGreen>;
+                    i++;
+                    break;
+                }
+            }
+        }
+    }
+};
+
+struct Article {
+    struct ArticleVariant {
+        // local int prev_color = GetBackColor();
+        uint32 unk0x0;
+        uint32 unk0x4;
+        uint32 unk0x8;
+        uint32 script_pointer <format=hex, fgcolor=cRed>;
+
+        if (script_pointer != 0) {
+            seek_ref(script_pointer);
+            // SetBackColor(cGreen);
+            struct Script script((next_target(FTell()) - FTell())/sizeof(uint32));
+            // uint32 script[(next_target(FTell()) - FTell())/sizeof(uint32)] <bgcolor=cGreen>;
+        }
+        FSeek(startof(this) + 0x10);
+        // SetBackColor(prev_color);
+    };
+
+    local uint64 start = FTell();
+    local uint32 test = ReadInt();
+    FSeek(start + 4);
+    local uint32 test2 = ReadInt();
+    FSeek(start);
+
+    if (test < fileHeader.fileSize0x00 & test2 < fileHeader.fileSize0x00 & test != 0) {
+
+        uint32 common_attributes_pointer    <format=hex, fgcolor=cRed>;
+        uint32 unique_attributes_pointer    <format=hex, fgcolor=cRed>;
+        uint32 hurtbox_header_pointer       <format=hex, fgcolor=cRed>;
+        uint32 variants_pointer             <format=hex, fgcolor=cRed>;
+        uint32 jobj_pointer_pointer         <format=hex, fgcolor=cRed>;
+        uint32 unk0x14;
+
+        if (common_attributes_pointer != 0) {
+            seek_ref(common_attributes_pointer);
+            uint32 article_common_attributes[0x21] <bgcolor=cLtPurple>;
+        }
+        if (unique_attributes_pointer != 0) {  // not guaranteed to work but it should
+            seek_ref(unique_attributes_pointer);
+            // SetBackColor(cPurple);
+            uint32 article_unique_attributes[(next_target(FTell()) - FTell())/sizeof(uint32)] <bgcolor=cPurple>;
+        }
+        if (hurtbox_header_pointer != 0) {
+            // SetBackColor(cLtRed);
+            seek_ref(hurtbox_header_pointer);
+            struct ArticleHurtboxStruct hurtbox_data <bgcolor=cLtRed>;
+        }
+        if (variants_pointer != 0) {
+            seek_ref(variants_pointer);
+            local int n_variants = (next_target(FTell()) - FTell()) / 0x10;
+            local int i;
+            // SetBackColor(cLtPurple);
+            for (i = 0; i < n_variants; i++) {
+                struct ArticleVariant variants <bgcolor=cLtPurple>;
+            }
+        }
+        if (jobj_pointer_pointer != 0) {
+            seek_ref(jobj_pointer_pointer);
+            struct {
+                uint32 jobj_pointer <format=hex, fgcolor=cRed>;
+                uint32 unk0x4;
+                uint32 unk0x8;
+                uint32 unk0xC;
+                if (jobj_pointer != 0) {
+                    seek_ref(jobj_pointer);
+                    struct JObjDesc jobj;
+                }
+                seek_ref(startof(this) + 0x10);
+            } object_data;
+        }
+    }
+    else {
+        uint32 unknown[(next_target(FTell()) - FTell())/sizeof(uint32)];
+    }
+    FSeek(startof(this) + 0x18);
+};
+
+typedef struct {
+    uint32 name_pointer             <format=hex, fgcolor=cRed>;
+    uint32 animation_offset         <format=hex>;
+    uint32 animation_filesize       <format=hex>;
+    uint32 script_pointer           <format=hex, fgcolor=cRed>;
+    uint32 flags                    <format=hex>;
+    uint32 space_for_ARAM_pointer;
+
+    if (name_pointer != 0) {
+        seek_ref(name_pointer);
+        string name;
+    }
+    else {
+        local string name = "(no name)";
+    }
+    if (script_pointer != 0) {
+        seek_ref(script_pointer);
+        // local int prev_color = GetBackColor();
+        // not strictly correct. will prematurely end if it crosses a
+        // location pointed to by a goto / subroutine. Fixable by including
+        // and referencing a list of lengths for each event type
+        // uint32 script[(next_target(FTell()) - FTell())/sizeof(uint32)] <bgcolor=cGreen>;
+        struct Script script((next_target(FTell()) - FTell())/sizeof(uint32));
+        // SetBackColor(prev_color);
+    }
+    FSeek(startof(this) + 0x18);
+} Subaction;
+
+string get_subaction_name(Subaction &sa) {
+    return sa.name;
+}
+
+struct SubactionTable (int n_subactions){
+    local int i;
+    local uint64 name_pointer;
+    local string name;
+    for (i = 0; i < n_subactions; i++) {
+        struct Subaction subactions <name = get_subaction_name>;
+    }
+};
+
+struct EnvCollisionData {
+    uint16 unk0x0;
+    uint16 ECB_bones[5];
+    float some_ecb_float_multiplier;
+    float ledge_grab_horz_scale;
+    float ledge_grab_vert_offset_from_TopN;
+    float ledge_grab_vert_scale;
+};
+
+struct DAT_FILE fileInfo;
